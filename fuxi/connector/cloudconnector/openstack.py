@@ -34,17 +34,14 @@ LOG = logging.getLogger(__name__)
 
 
 class CinderConnector(connector.Connector):
-    def __init__(self):
+    def __init__(self, cinderclient=None, *args, **kwargs):
         super(CinderConnector, self).__init__()
-        self.cinderclient = utils.get_cinderclient()
+        if not cinderclient:
+            cinderclient = utils.get_cinderclient()
+        self.cinderclient = cinderclient
         self.novaclient = utils.get_novaclient()
 
-    @lockutils.synchronized('openstack-attach-volume')
     def connect_volume(self, volume, **connect_opts):
-        bdm = blockdevice.BlockerDeviceManager()
-        ori_devices = bdm.device_scan()
-
-        # Do volume-attach
         try:
             server_id = connect_opts.get('server_id', None)
             if not server_id:
@@ -61,52 +58,20 @@ class CinderConnector(connector.Connector):
                 nova_volume,
                 'in-use',
                 ('available', 'attaching',))
-            attached_volume = volume_monitor.monitor_cinder_volume()
+            volume_monitor.monitor_cinder_volume()
         except nova_exception.ClientException as ex:
             LOG.error(_LE("Attaching volume %(vol)s to server %(s)s "
                           "failed. Error: %(err)s"),
                       {'vol': volume.id, 's': server_id, 'err': ex})
             raise
 
-        # Get all devices on host after do volume-attach,
-        # and then find attached device.
-        LOG.info(_LI("After connected to volume, scan the added "
-                     "block device on host"))
-        curr_devices = bdm.device_scan()
-        start_time = time.time()
-        delta_devices = list(set(curr_devices) - set(ori_devices))
-        while not delta_devices:
-            time.sleep(consts.DEVICE_SCAN_TIME_DELAY)
-            curr_devices = bdm.device_scan()
-            delta_devices = list(set(curr_devices) - set(ori_devices))
-            if time.time() - start_time > consts.DEVICE_SCAN_TIMEOUT:
-                msg = _("Could not detect added device with "
-                        "limited time")
-                raise exceptions.FuxiException(msg)
-        LOG.info(_LI("Get extra added block device %s"), delta_devices)
+        utils.execute('udevadm', 'trigger', run_as_root=True)
 
-        for device in delta_devices:
-            if bdm.get_device_size(device) == volume.size:
-                device = device.replace('/sys/block', '/dev')
-                LOG.info(_LI("Find attached device %(dev)s"
-                             " for volume %(at)s %(vol)s"),
-                         {'dev': device, 'at': attached_volume.name,
-                          'vol': volume})
-
-                link_path = os.path.join(consts.VOLUME_LINK_DIR, volume.id)
-                try:
-                    utils.execute('ln', '-s', device,
-                                  link_path,
-                                  run_as_root=True)
-                except processutils.ProcessExecutionError as e:
-                    LOG.error(_LE("Error happened when create link file for"
-                                  " block device attached by Nova."
-                                  " Error: %s"), e)
-                    raise
-                return {'path': link_path}
-
-        LOG.warning(_LW("Could not find matched device"))
-        raise exceptions.NotFound("Not Found Matched Device")
+        dev_path = self.get_device_path(volume)
+        if not dev_path:
+            LOG.warning(_LW("Could not find matched device for volume %s"),
+                        volume.id)
+        return {'path', dev_path}
 
     def disconnect_volume(self, volume, **disconnect_opts):
         try:
@@ -114,13 +79,6 @@ class CinderConnector(connector.Connector):
         except cinder_exception.ClientException as e:
             LOG.error(_LE("Get Volume %s from Cinder failed"), volume.id)
             raise
-
-        try:
-            link_path = self.get_device_path(volume)
-            utils.execute('rm', '-f', link_path, run_as_root=True)
-        except processutils.ProcessExecutionError as e:
-            LOG.warning(_LE("Error happened when remove docker volume"
-                            " mountpoint directory. Error: %s"), e)
 
         try:
             self.novaclient.volumes.delete_server_volume(
@@ -138,4 +96,15 @@ class CinderConnector(connector.Connector):
         return volume_monitor.monitor_cinder_volume()
 
     def get_device_path(self, volume):
-        return os.path.join(consts.VOLUME_LINK_DIR, volume.id)
+        volume_id = volume.id
+        candidate_devices = [
+            # kvm or qemu
+            'virtio-' + volume_id[:20],
+            'scsi-0QEMU_QEMU_HARDDISK_' + volume_id[:20]
+        ]
+
+        for dev_name in os.listdir('/dev/disk/by-id/'):
+            if dev_name in candidate_devices:
+                return '/dev/disk/by-id/' + dev_name
+
+        return ''
