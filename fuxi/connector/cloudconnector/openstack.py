@@ -11,21 +11,15 @@
 # under the License.
 
 import os
-import time
 
 from cinderclient import exceptions as cinder_exception
 from novaclient import exceptions as nova_exception
-from oslo_concurrency import lockutils
-from oslo_concurrency import processutils
 from oslo_log import log as logging
 
-from fuxi.common import blockdevice
 from fuxi.common import config
-from fuxi.common import constants as consts
 from fuxi.common import state_monitor
 from fuxi.connector import connector
-from fuxi import exceptions
-from fuxi.i18n import _, _LI, _LW, _LE
+from fuxi.i18n import _LI, _LW, _LE
 from fuxi import utils
 
 CONF = config.CONF
