@@ -48,10 +48,6 @@ class FakeCinderConnector(object):
         return os.path.join(volume_link_dir, volume.id)
 
 
-def mock_connector(cls):
-    return FakeCinderConnector()
-
-
 def mock_monitor_cinder_volume(cls):
     cls.expected_obj.status = cls.desired_state
     return cls.expected_obj
@@ -68,15 +64,14 @@ class TestCinder(base.TestCase):
         base.TestCase.setUp(self)
         self.cinderprovider = cinder.Cinder()
         self.cinderprovider.cinderclient = fake_client.FakeCinderClient()
+        self.cinderprovider.connector = FakeCinderConnector()
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(None, consts.UNKNOWN))
     def test_create_with_volume_not_exist(self, mock_docker_volume):
         self.assertEqual(os.path.join(volume_link_dir, DEFAULT_VOLUME_ID),
                          self.cinderprovider.create('fake-vol', {})['path'])
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            status='unknown'), consts.UNKNOWN))
@@ -91,7 +86,6 @@ class TestCinder(base.TestCase):
                                       DEFAULT_VOLUME_ID),
                          result['path'])
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            status='unknown'), consts.UNKNOWN))
@@ -107,7 +101,6 @@ class TestCinder(base.TestCase):
                           fake_volume_name,
                           fake_volume_opts)
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            status='unknown'), consts.UNKNOWN))
@@ -129,7 +122,6 @@ class TestCinder(base.TestCase):
                           fake_volume_name,
                           {'volume_id': DEFAULT_VOLUME_ID})
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     def test_create_from_volume_id_with_unexpected_status_2(self):
         fake_server_id = 'fake_server_123'
         fake_host_name = 'attached_to_other'
@@ -152,7 +144,6 @@ class TestCinder(base.TestCase):
                           fake_volume_name,
                           {'volume_id': DEFAULT_VOLUME_ID})
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     def test_create_with_volume_attach_to_this(self):
         fake_server_id = 'fake_server_123'
         fake_host_name = 'attached_to_this'
@@ -173,7 +164,6 @@ class TestCinder(base.TestCase):
         self.assertEqual(os.path.join(volume_link_dir, DEFAULT_VOLUME_ID),
                          fake_result['path'])
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     def test_create_with_volume_no_attach(self):
         fake_cinder_volume = fake_object.FakeCinderVolume()
         self.cinderprovider._get_docker_volume = mock.MagicMock()
@@ -184,7 +174,6 @@ class TestCinder(base.TestCase):
         self.assertEqual(os.path.join(volume_link_dir, DEFAULT_VOLUME_ID),
                          fake_result['path'])
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            multiattach=True), consts.ATTACH_TO_OTHER))
@@ -194,7 +183,6 @@ class TestCinder(base.TestCase):
                                       fake_object.DEFAULT_VOLUME_ID),
                          self.cinderprovider.create('fake-vol', {})['path'])
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            multiattach=False), consts.ATTACH_TO_OTHER))
@@ -215,7 +203,6 @@ class TestCinder(base.TestCase):
                               fake_vol_name,
                               {})
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(utils, 'execute')
     @mock.patch.object(FakeCinderConnector,
                        'get_device_path',
@@ -238,7 +225,6 @@ class TestCinder(base.TestCase):
 
         self.assertTrue(self.cinderprovider.delete('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(),
                                      consts.NOT_ATTACH))
@@ -246,14 +232,12 @@ class TestCinder(base.TestCase):
         self.cinderprovider._delete_volume = mock.MagicMock()
         self.assertTrue(self.cinderprovider.delete('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(),
                                      consts.ATTACH_TO_OTHER))
     def test_delete_attach_to_other(self, mock_docker_volume):
         self.assertTrue(self.cinderprovider.delete('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(status=None),
                                      None))
@@ -262,7 +246,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.delete,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(utils, 'execute')
     @mock.patch.object(FakeCinderConnector,
                        'get_device_path',
@@ -288,7 +271,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.delete,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(utils, 'execute')
     @mock.patch.object(FakeCinderConnector,
                        'get_device_path',
@@ -313,7 +295,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.delete,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     def test_list(self):
         fake_vols = [fake_object.FakeCinderVolume(name='fake-vol1')]
         with mock.patch.object(fake_client.FakeCinderClient.Volumes, 'list',
@@ -321,14 +302,12 @@ class TestCinder(base.TestCase):
             self.assertEqual([{'Name': 'fake-vol1', 'Mountpoint': ''}],
                              self.cinderprovider.list())
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch('fuxi.tests.unit.fake_client.FakeCinderClient.Volumes.list',
                 side_effect=cinder_exception.ClientException(500))
     def test_list_failed(self, mock_list):
         self.assertRaises(cinder_exception.ClientException,
                           self.cinderprovider.list)
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(utils, 'execute')
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(),
@@ -337,7 +316,6 @@ class TestCinder(base.TestCase):
         self.assertEqual({'Name': 'fake-vol', 'Mountpoint': ''},
                          self.cinderprovider.show('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            status='unknown'), consts.UNKNOWN))
@@ -346,7 +324,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.show,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(status=None),
                                      None))
@@ -355,7 +332,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.show,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(
                            name='fake-vol',
@@ -373,7 +349,6 @@ class TestCinder(base.TestCase):
                 self.assertEqual(fake_mountpoint,
                                  self.cinderprovider.mount('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(status=None),
                                      None))
@@ -382,7 +357,6 @@ class TestCinder(base.TestCase):
                           self.cinderprovider.mount,
                           'fake-vol')
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_get_docker_volume',
                        return_value=(fake_object.FakeCinderVolume(),
                                      consts.NOT_ATTACH))
@@ -400,7 +374,6 @@ class TestCinder(base.TestCase):
                 self.assertEqual(fake_mountpoint,
                                  self.cinderprovider.mount('fake-vol'))
 
-    @mock.patch.object(cinder.Cinder, '_get_connector', mock_connector)
     @mock.patch.object(cinder.Cinder, '_create_mountpoint')
     @mock.patch.object(mount, 'do_mount')
     def test_mount_state_attach_to_other(self, mock_create_mp, mock_do_mount):
