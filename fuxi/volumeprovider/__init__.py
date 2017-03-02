@@ -43,3 +43,4 @@ def load_providers(conf_providers):
         except Exception as e:
             LOG.error(_LE("Load volume provider %(p)s failed, %(err)s"),
                       {'p': provider, 'err': e})
+    return volume_providers

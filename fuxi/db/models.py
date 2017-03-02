@@ -12,28 +12,43 @@
 
 
 class Volume(object):
+    """This object represent the volume that creates from any storage
+    backend that Fuxi enables
+    """
     _attrs = ['name', 'mountpoint', 'status', 'id', 'host', 'provider']
 
     def __init__(self, name, provider, mountpoint='', status=None,
                  id=None, host=None):
-        """This object represent the volume that creates from any storage
-        backend that Fuxi enables
+        """
 
         :param name: The unique flag for volume.
+        :type name: str
         :param provider: the provider of this volume.
+        :type provider: str
         :param mountpoint: The mountpoint that the volume existed in host.
+        :type mountpoint: str
         :param status: The status of volume.
+        :type status: dict
         :param id: The anther flag for volume could extract from backed volume.
+        :type id: str
         :param host: in which the volume located.
+        :type host: list
         """
         self.name = name
         self.provider = provider
         self.mountpoint = mountpoint
+        if status is None:
+            self.status = {}
+        elif isinstance(status, dict):
+            self.status = status
+        else:
+            raise Exception("")
         self.status = status
         self.id = id
         self.hosts = []
 
     def to_docker_volume(self):
+        """Convert Fuxi volume to Docker volume object."""
         docker_volume = {
             'Name': self.name,
             'Mountpoint': self.mountpoint,
@@ -46,8 +61,8 @@ def from_dict(**kwargs):
     if 'name' not in kwargs or 'provider' not in kwargs:
             raise Exception()
     return Volume(name=kwargs['name'],
-                  provider=kwargs['provider'],
-                  mountpoint=kwargs.get('mountpoint', ''),
-                  status=kwargs.get('status', ''),
-                  id=kwargs.get('id', ''),
-                  host=kwargs.get('host', []))
+                      provider=kwargs['provider'],
+                      mountpoint=kwargs.get('mountpoint', ''),
+                      status=kwargs.get('status', {}),
+                      id=kwargs.get('id', ''),
+                      host=kwargs.get('host', []))

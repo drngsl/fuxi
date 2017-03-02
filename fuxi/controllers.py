@@ -10,27 +10,19 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import collections
 import flask
 import os
 
 from oslo_concurrency import processutils
 from oslo_config import cfg
-from oslo_utils import importutils
 
 from fuxi import app
 from fuxi import exceptions
 from fuxi.i18n import _, _LI, _LW
 from fuxi import utils
+from fuxi import volumeprovider
 
 CONF = cfg.CONF
-
-CINDER = 'cinder'
-MANILA = 'manila'
-
-volume_providers_conf = {
-    CINDER: 'fuxi.volumeprovider.cinder.Cinder',
-    MANILA: 'fuxi.volumeprovider.manila.Manila', }
 
 
 def init_app_conf():
@@ -39,15 +31,7 @@ def init_app_conf():
     if not volume_providers:
         raise Exception("Must define volume providers in configuration file")
 
-    app.volume_providers = collections.OrderedDict()
-    for provider in volume_providers:
-        if provider in volume_providers_conf:
-            app.volume_providers[provider] = importutils\
-                .import_class(volume_providers_conf[provider])()
-            app.logger.info(_LI("Load volume provider: %s"), provider)
-        else:
-            app.logger.warning(_LW("Could not find volume provider: %s"),
-                               provider)
+    app.volume_providers = volumeprovider.load_providers(volume_providers)
     if not app.volume_providers:
         raise Exception("Not provide at least one effective volume provider")
 
