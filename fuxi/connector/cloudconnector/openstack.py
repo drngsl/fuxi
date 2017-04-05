@@ -97,8 +97,13 @@ class CinderConnector(connector.Connector):
             'scsi-0QEMU_QEMU_HARDDISK_' + volume_id[:20]
         ]
 
-        for dev_name in os.listdir('/dev/disk/by-id/'):
+        id_path = '/dev/disk/by-id/'
+
+        if not os.path.exists(id_path):
+            return ''
+
+        for dev_name in os.listdir(id_path):
             if dev_name in candidate_devices:
-                return '/dev/disk/by-id/' + dev_name
+                return id_path + dev_name
 
         return ''
